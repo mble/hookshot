@@ -26,7 +26,7 @@ GO_LDFLAGS_STATIC=-ldflags "-w $(CTIMEVAR) -extldflags -static"
 # List the GOOS and GOARCH to build
 GOOSARCHES = darwin/amd64 linux/amd64
 
-all: clean build fmt lint test vet install ## Runs a clean, build, fmt, lint, test, vet and install
+all: clean build fmt lint test vet ## Runs a clean, build, fmt, lint, test, vet and install
 
 .PHONY: build
 build: $(NAME) ## Builds a dynamic executable or package
@@ -73,8 +73,6 @@ GOOS=$(1) GOARCH=$(2) CGO_ENABLED=0 go build \
 	 -o $(BUILDDIR)/$(1)/$(2)/$(NAME) \
 	 -a -tags "$(BUILDTAGS) static_build netgo" \
 	 -installsuffix netgo ${GO_LDFLAGS_STATIC} .;
-md5sum $(BUILDDIR)/$(1)/$(2)/$(NAME) > $(BUILDDIR)/$(1)/$(2)/$(NAME).md5;
-sha256sum $(BUILDDIR)/$(1)/$(2)/$(NAME) > $(BUILDDIR)/$(1)/$(2)/$(NAME).sha256;
 endef
 
 .PHONY: cross
@@ -95,6 +93,10 @@ endef
 release: *.go VERSION.txt ## Builds the cross-compiled binaries, naming them in such a way for release (eg. binary-GOOS-GOARCH)
 	@echo "+ $@"
 	$(foreach GOOSARCH,$(GOOSARCHES), $(call buildrelease,$(subst /,,$(dir $(GOOSARCH))),$(notdir $(GOOSARCH))))
+
+.PHONY: docker
+docker: cross Dockerfile ## Build a docker image for the binary
+	@docker build . -t deployhook
 
 .PHONY: tag
 tag: ## Create a new git tag to prepare to build a release
