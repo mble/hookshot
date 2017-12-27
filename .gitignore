@@ -9,6 +9,7 @@
 _obj
 _test
 cross
+vendor
 
 # Architecture specific extensions/prefixes
 *.[568vq]
