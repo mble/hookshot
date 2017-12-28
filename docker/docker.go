@@ -1,8 +1,7 @@
 package docker
 
 import (
-	"fmt"
-	"time"
+	"net/http"
 
 	docker "github.com/fsouza/go-dockerclient"
 )
@@ -10,27 +9,47 @@ import (
 // DockerSocket defines the Unix Docker socket location
 const DockerSocket = "unix:///var/run/docker.sock"
 
-// ListImages returns a string containing image info on the current Docker host
-func ListImages() string {
-	var info string
+// Image embeds docker.APIImages to make rendering easier
+type Image struct {
+	docker.APIImages
+}
 
+// Render provides render.Renderer compatibility
+func (i Image) Render(w http.ResponseWriter, req *http.Request) error {
+	return nil
+}
+
+// Container represents a deployed container
+type Container struct {
+	ID     string       `json:"Id"`
+	Name   string       `json:"Name"`
+	Args   []string     `json:"Args"`
+	Image  string       `json:"Image"`
+	State  docker.State `json:"State"`
+	Status string       `json:"Status"`
+}
+
+// Render provides render.Renderer compatibility
+func (c Container) Render(w http.ResponseWriter, req *http.Request) error {
+	return nil
+}
+
+// ListImages returns []APIImages containing image info on the current Docker host
+func ListImages() []Image {
+	var imgs []Image
 	client, err := docker.NewClient(DockerSocket)
 	if err != nil {
 		panic(err)
 	}
-	imgs, _ := client.ListImages(docker.ListImagesOptions{All: false})
-	for _, img := range imgs {
-		info += fmt.Sprintf("ID: %s\n", img.ID) +
-			fmt.Sprintf("RepoTags: %s\n", img.RepoTags) +
-			fmt.Sprintf("Created: %s\n", time.Unix(img.Created, 0)) +
-			fmt.Sprintf("Labels: %s\n", img.Labels) +
-			"\n"
+	rawImgs, _ := client.ListImages(docker.ListImagesOptions{All: false})
+	for _, img := range rawImgs {
+		imgs = append(imgs, Image{img})
 	}
-	return info
+	return imgs
 }
 
 // DeployImage deploys the "hello-world" docker image
-func DeployImage(imageName string) (containerName string, err error) {
+func DeployImage(imageName string) (container Container, err error) {
 	var dockerErr error
 	image := docker.PullImageOptions{Repository: imageName, Tag: "latest"}
 	auth := docker.AuthConfiguration{}
@@ -46,8 +65,15 @@ func DeployImage(imageName string) (containerName string, err error) {
 	config := docker.Config{Image: imageName}
 	hostConfig := docker.HostConfig{PublishAllPorts: true}
 	create := docker.CreateContainerOptions{Name: imageName, Config: &config}
-	container, dockerErr := client.CreateContainer(create)
-	dockerErr = client.StartContainer(container.ID, &hostConfig)
+	rawContainer, dockerErr := client.CreateContainer(create)
+	dockerErr = client.StartContainer(rawContainer.ID, &hostConfig)
+	rawContainer, dockerErr = client.InspectContainer(rawContainer.ID)
+	cntr := Container{ID: rawContainer.ID, Name: rawContainer.Name, Args: rawContainer.Args, Image: rawContainer.Image, State: rawContainer.State}
+	if dockerErr != nil {
+		cntr.Status = "error"
+	} else {
+		cntr.Status = "ok"
+	}
 
-	return container.Name, dockerErr
+	return cntr, dockerErr
 }

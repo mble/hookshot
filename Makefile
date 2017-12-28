@@ -2,7 +2,7 @@
 PREFIX?=$(shell pwd)
 
 # Setup name variables for the package/tool
-NAME := deployhook
+NAME := hookshot
 PKG := github.com/mble/$(NAME)
 
 # Set any default go build tags
@@ -24,9 +24,9 @@ GO_LDFLAGS=-ldflags "-w $(CTIMEVAR)"
 GO_LDFLAGS_STATIC=-ldflags "-w $(CTIMEVAR) -extldflags -static"
 
 # List the GOOS and GOARCH to build
-GOOSARCHES = darwin/amd64 linux/amd64
+GOOSARCHES = linux/amd64
 
-all: clean build fmt lint test vet ## Runs a clean, build, fmt, lint, test, vet and install
+all: clean fmt lint test vet deps build ## Runs a clean, fmt, lint, test, vet and builds
 
 .PHONY: build
 build: $(NAME) ## Builds a dynamic executable or package
@@ -34,13 +34,6 @@ build: $(NAME) ## Builds a dynamic executable or package
 $(NAME): *.go VERSION.txt
 	@echo "+ $@"
 	go build -tags "$(BUILDTAGS)" ${GO_LDFLAGS} -o $(NAME) .
-
-.PHONY: static
-static: ## Builds a static executable
-	@echo "+ $@"
-	CGO_ENABLED=0 go build \
-				-tags "$(BUILDTAGS) static_build" \
-				${GO_LDFLAGS_STATIC} -o $(NAME) .
 
 .PHONY: fmt
 fmt: ## Verifies all files have men `gofmt`ed
@@ -62,10 +55,11 @@ vet: ## Verifies `go vet` passes
 	@echo "+ $@"
 	@go vet $(shell go list ./... | grep -v vendor) | grep -v '.pb.go:' | tee /dev/stderr
 
-.PHONY: install
-install: ## Installs the executable or package
+.PHONY: deps
+deps: ## Fetches deps using `dep`
 	@echo "+ $@"
-	@go install .
+	@go get -u github.com/golang/dep/cmd/dep
+	@dep ensure
 
 define buildpretty
 mkdir -p $(BUILDDIR)/$(1)/$(2);
@@ -80,28 +74,10 @@ cross: *.go VERSION.txt ## Builds the cross-compiled binaries, creating a clean 
 	@echo "+ $@"
 	$(foreach GOOSARCH,$(GOOSARCHES), $(call buildpretty,$(subst /,,$(dir $(GOOSARCH))),$(notdir $(GOOSARCH))))
 
-define buildrelease
-GOOS=$(1) GOARCH=$(2) CGO_ENABLED=0 go build \
-	 -o $(BUILDDIR)/$(NAME)-$(1)-$(2) \
-	 -a -tags "$(BUILDTAGS) static_build netgo" \
-	 -installsuffix netgo ${GO_LDFLAGS_STATIC} .;
-md5sum $(BUILDDIR)/$(NAME)-$(1)-$(2) > $(BUILDDIR)/$(NAME)-$(1)-$(2).md5;
-sha256sum $(BUILDDIR)/$(NAME)-$(1)-$(2) > $(BUILDDIR)/$(NAME)-$(1)-$(2).sha256;
-endef
-
-.PHONY: release
-release: *.go VERSION.txt ## Builds the cross-compiled binaries, naming them in such a way for release (eg. binary-GOOS-GOARCH)
-	@echo "+ $@"
-	$(foreach GOOSARCH,$(GOOSARCHES), $(call buildrelease,$(subst /,,$(dir $(GOOSARCH))),$(notdir $(GOOSARCH))))
-
 .PHONY: docker
-docker: cross Dockerfile ## Build a docker image for the binary
-	@docker build . -t deployhook
-
-.PHONY: tag
-tag: ## Create a new git tag to prepare to build a release
-	git tag -sa $(VERSION) -m "$(VERSION)"
-	@echo "Run git push origin $(VERSION) to push your new tag to GitHub and trigger a travis build."
+docker: deps cross Dockerfile ## Build a docker image for the binary
+	@echo "+ $@"
+	@docker build . -t $(NAME)
 
 .PHONY: clean
 clean: ## Cleanup any build binaries or packages
