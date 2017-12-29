@@ -48,7 +48,7 @@ func ListImages() []Image {
 	return imgs
 }
 
-// DeployImage deploys the "hello-world" docker image
+// DeployImage deploys the specified docker image
 func DeployImage(imageName string) (container Container, err error) {
 	var dockerErr error
 	image := docker.PullImageOptions{Repository: imageName, Tag: "latest"}
@@ -65,10 +65,16 @@ func DeployImage(imageName string) (container Container, err error) {
 	config := docker.Config{Image: imageName}
 	hostConfig := docker.HostConfig{PublishAllPorts: true}
 	create := docker.CreateContainerOptions{Name: imageName, Config: &config}
+
 	rawContainer, dockerErr := client.CreateContainer(create)
 	dockerErr = client.StartContainer(rawContainer.ID, &hostConfig)
 	rawContainer, dockerErr = client.InspectContainer(rawContainer.ID)
-	cntr := Container{ID: rawContainer.ID, Name: rawContainer.Name, Args: rawContainer.Args, Image: rawContainer.Image, State: rawContainer.State}
+	cntr := Container{ID: rawContainer.ID,
+		Name:  rawContainer.Name,
+		Args:  rawContainer.Args,
+		Image: rawContainer.Image,
+		State: rawContainer.State}
+
 	if dockerErr != nil {
 		cntr.Status = "error"
 	} else {

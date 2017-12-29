@@ -22,6 +22,7 @@ func NewVersionData() *Data {
 	return data
 }
 
+// Render provides compatibility for render.Renderer
 func (d *Data) Render(w http.ResponseWriter, req *http.Request) error {
 	return nil
 }
