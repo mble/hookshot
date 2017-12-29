@@ -1,4 +1,4 @@
-# Hookshot
+# Hookshot [![Build Status](https://travis-ci.org/mble/hookshot.svg?branch=master)](https://travis-ci.org/mble/hookshot) [![Go Report Card](https://goreportcard.com/badge/github.com/mble/hookshot)](https://goreportcard.com/report/github.com/mble/hookshot)
 
 Hookshot is a *WIP* webhook handler for deploying Docker images.
 
